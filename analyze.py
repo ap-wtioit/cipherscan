@@ -63,7 +63,13 @@ def is_fubar(results):
         pubkey_bits = int(conn['pubkey'][0])
         ec_kex = re.match(r"(ECDHE|EECDH|ECDH)-", conn['cipher'])
 
-        if conn['cipher'] not in (set(old["openssl_ciphers"]) | set(inter["openssl_ciphers"]) | set(modern["openssl_ciphers"])):
+        if conn['protocols'] == ['TLSv1.3']:
+            # for TLSv1.3 check ciphers against openssl_ciphersuites
+            if conn['cipher'] not in set(modern["openssl_ciphersuites"] + inter["openssl_ciphers"] + modern["openssl_ciphers"]):
+                logging.debug(conn['cipher'] + ' is not in the list of fubar ciphers')
+                failures[lvl].append("remove cipher " + conn['cipher'])
+                fubar = True
+        elif conn['cipher'] not in (set(old["openssl_ciphers"]) | set(inter["openssl_ciphers"]) | set(modern["openssl_ciphers"])):
             failures[lvl].append("remove cipher " + conn['cipher'])
             logging.debug(conn['cipher'] + ' is in the list of fubar ciphers')
             fubar = True
@@ -121,7 +127,13 @@ def is_old(results):
     for conn in results['ciphersuite']:
         logging.debug('testing connection %s' % conn)
         # flag unwanted ciphers
-        if conn['cipher'] not in old["openssl_ciphers"]:
+        if conn['protocols'] == ['TLSv1.3']:
+            # for TLSv1.3 check ciphers against openssl_ciphersuites
+            if conn['cipher'] not in modern["openssl_ciphersuites"]:
+                logging.debug(conn['cipher'] + ' is not in the list of modern ciphers')
+                failures[lvl].append("remove cipher " + conn['cipher'])
+                isold = False
+        elif conn['cipher'] not in old["openssl_ciphers"]:
             logging.debug(conn['cipher'] + ' is not in the list of old ciphers')
             failures[lvl].append("remove cipher " + conn['cipher'])
             isold = False
@@ -183,7 +195,13 @@ def is_intermediate(results):
     all_proto = []
     for conn in results['ciphersuite']:
         logging.debug('testing connection %s' % conn)
-        if conn['cipher'] not in inter["openssl_ciphers"]:
+        if conn['protocols'] == ['TLSv1.3']:
+            # for TLSv1.3 check ciphers against openssl_ciphersuites
+            if conn['cipher'] not in modern["openssl_ciphersuites"]:
+                logging.debug(conn['cipher'] + ' is not in the list of intermediate ciphers')
+                failures[lvl].append("remove cipher " + conn['cipher'])
+                isinter = False
+        elif conn['cipher'] not in inter["openssl_ciphers"]:
             logging.debug(conn['cipher'] + ' is not in the list of intermediate ciphers')
             failures[lvl].append("remove cipher " + conn['cipher'])
             isinter = False
@@ -234,7 +252,13 @@ def is_modern(results):
     all_proto = []
     for conn in results['ciphersuite']:
         logging.debug('testing connection %s' % conn)
-        if conn['cipher'] not in modern["openssl_ciphers"]:
+        if conn['protocols'] == ['TLSv1.3']:
+            # for TLSv1.3 check ciphers against openssl_ciphersuites
+            if conn['cipher'] not in modern["openssl_ciphersuites"]:
+                logging.debug(conn['cipher'] + ' is not in the list of modern ciphers')
+                failures[lvl].append("remove cipher " + conn['cipher'])
+                ismodern = False
+        elif conn['cipher'] not in modern["openssl_ciphers"]:
             logging.debug(conn['cipher'] + ' is not in the list of modern ciphers')
             failures[lvl].append("remove cipher " + conn['cipher'])
             ismodern = False
