@@ -129,7 +129,7 @@ join_array_by_char ':' "${SHORTCIPHERSUITE[@]}"
 SHORTCIPHERSUITESTRING="$joined_array"
 
 # TLS 1.3 is different from other versions of the protocol and
-# ciphersuites must be passed to openssl explicitely
+# ciphersuites must be passed to openssl explicitly
 TLS13CIPHERSUITE=(
     'TLS_AES_256_GCM_SHA384'
     'TLS_AES_128_GCM_SHA256'
@@ -478,7 +478,7 @@ parse_openssl_output() {
         fi
 
         # extract used protocol
-        if [[ $line =~ Protocol\ + ]]; then
+        if [[ $line =~ ^Protocol\ + ]]; then
             local match=($line)
             current_protocol="${match[2]}"
             continue
