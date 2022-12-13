@@ -651,8 +651,8 @@ test_tls13_cipher_on_target() {
     init_result_vars
     local sslcommand=("$@")
     ratelimit
-    debug echo \"Q\" \| "${sslcommand[@]}" $tls_version
-    local tmp=$(echo "Q" | "${sslcommand[@]}" $tls_version 1>/dev/stdout 2>/dev/null)
+    debug echo \"Q\" \| "${sslcommand[@]}"
+    local tmp=$(echo "Q" | "${sslcommand[@]}" 1>/dev/stdout 2>/dev/null)
 
     parse_openssl_output <<<"$tmp"
     cipher=$current_cipher
@@ -1212,23 +1212,36 @@ display_results_in_json() {
 
 test_serverside_ordering() {
     local -a ciphersuites=()
+    local -a ciphersuites_1_3=()
     local ciphersuite=""
     local prefered=""
+    local test_function="test_cipher_on_target"
     # server supports only one cipher or no ciphers, so it effectively uses server side ordering...
     if (( ${#cipherspref[@]} < 2 )); then
         serverside="True"
         return 0
     fi
     local cipher=""
-    if (( ${#cipherspref[@]} > 2 )); then
-        # server supports 3 or more ciphers, rotate all three. This is necessary because google does
-        # select first client provided cipher, if it is either CDHE-RSA-AES128-GCM-SHA256 or
-        # ECDHE-RSA-CHACHA20-POLY1305
-        ciphersuites+=("${cipherspref[2]%% *}")
+    # rotate up to the first three ciphers. This is necessary because google does
+    # select first client provided cipher, if it is either CDHE-RSA-AES128-GCM-SHA256 or
+    # ECDHE-RSA-CHACHA20-POLY1305
+    local i=2
+    while (( i >= 0 )); do
+      if (( ${#cipherspref[@]} > i )) ; then
+        if [[ ${cipherspref[i]} == *" TLSv1.3 "* ]] ; then
+          ciphersuites_1_3+=("${cipherspref[i]%% *}")
+        else
+          ciphersuites+=("${cipherspref[i]%% *}")
+        fi
+      fi
+      i=$((i - 1))
+    done
+    if (( ${#ciphersuites_1_3[@]} >= 2 )) ; then
+      # if we have more than two suites for testing for TLSv1.3 we test with TLSv1.3
+      test_function="test_tls13_cipher_on_target"
+      ciphersuites=("${ciphersuites_1_3[@]}")
     fi
-    # else, server supports just two ciphers, so rotate them, that should be enough
-    ciphersuites+=("${cipherspref[1]%% *}")
-    ciphersuites+=("${cipherspref[0]%% *}")
+    # else we continue using the suites fit for SSL, <TLSv1.3
 
     prefered="${ciphersuites[0]%% *}"
 
@@ -1243,9 +1256,14 @@ test_serverside_ordering() {
         sslcommand+=("-CAfile" "$CACERTS")
     fi
     sslcommand+=("-trusted_first" "-status" "${SCLIENTARGS[@]}" "-connect" "$TARGET")
-    sslcommand+=("-cipher" "$ciphersuite")
 
-    test_cipher_on_target "${sslcommand[@]}"
+    if [[ $test_function == "test_tls13_cipher_on_target" ]] ; then
+      sslcommand+=("-tls1_3" "-ciphersuites" "$ciphersuite")
+    else
+      sslcommand+=("-cipher" "$ciphersuite")
+    fi
+
+    "$test_function" "${sslcommand[@]}"
     if (( $? != 0 )); then
         serverside="True"
     else
