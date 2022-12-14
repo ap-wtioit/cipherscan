@@ -35,6 +35,16 @@ def has_good_pfs(pfs, target_dh, target_ecc, must_match=False):
             return False
         if must_match and int(ecc) != target_ecc:
             return False
+    elif target_ecc and 'X25519,' in pfs:
+        # split string, expected format is 'X25519,253bits'
+        ecc = pfs.split(',')[1].split('b')[0]
+        if int(ecc) == 253:
+            # https://crypto.stackexchange.com/q/62024 OpenSSL reports 256bits X25519 as 253bits
+            ecc = '256'
+        if int(ecc) < target_ecc:
+            return False
+        if must_match and int(ecc) != target_ecc:
+            return False
     elif target_dh and 'DH,' in pfs:
         dhparam = pfs.split(',')[1].split('b')[0]
         if int(dhparam) < target_dh:
@@ -78,18 +88,19 @@ def is_fubar(results):
             logging.debug('SSLv2 is in the list of fubar protocols')
             fubar = True
         if not ec_kex and pubkey_bits < 2048:
-            has_wrong_pubkey = True
-            logging.debug(conn['pubkey'][0] + ' is a fubar pubkey size')
-            fubar = True
+            # if we have good PFS enabled we ignore if the public key reports 256bit (for TLSv1.3)
+            if conn['pfs'] == 'None' and has_good_pfs(conn['pfs'], 1024, 160):
+                has_wrong_pubkey = True
+                logging.debug(conn['pubkey'][0] + ' is a fubar pubkey size')
+                fubar = True
         if ec_kex and pubkey_bits < 256:
             has_wrong_ec_pubkey = True
             logging.debug(conn['pubkey'][0] + ' is a fubar EC pubkey size')
             fubar = True
-        if conn['pfs'] != 'None':
-            if not has_good_pfs(conn['pfs'], 1024, 160):
-                logging.debug(conn['pfs']+ ' is a fubar PFS parameters')
-                fubar = True
-                has_wrong_pfs = True
+        if conn['pfs'] != 'None' and not has_good_pfs(conn['pfs'], 1024, 160):
+            logging.debug(conn['pfs']+ ' is a fubar PFS parameters')
+            fubar = True
+            has_wrong_pfs = True
         for sigalg in conn['sigalg']:
             if sigalg not in (set(old["certificate_signatures"]) | set(inter["certificate_signatures"]) | set(modern["certificate_signatures"])):
                 logging.debug(sigalg + ' is a fubar cert signature')
